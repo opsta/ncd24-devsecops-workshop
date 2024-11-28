@@ -1,13 +1,12 @@
-FROM python:3.13.0-alpine3.20
+FROM python:3.11.3-alpine3.18
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY todo_app ./todo_app
 COPY *.py .
 
-EXPOSE 8000 8080
+EXPOSE 8000
 
-CMD python main.py
+CMD ["python", "main.py"]

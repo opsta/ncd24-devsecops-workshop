@@ -1,0 +1,88 @@
+name: 3. Production deployment
+
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_REPO: ${{ github.actor }}/ncd24-fastapi
+  IMAGE_NAME: ghcr.io/${{ github.actor }}/ncd24-fastapi
+  GITOPS_REPO: ${{ github.actor }}/ncd24-gitops
+  HELM_VALUES_FOLDER: helm-values
+  HELM_VALUES_FILE_PREFIX: ncd24-fastapi
+
+on:
+  workflow_dispatch:
+    inputs:
+      use-latest:
+        type: boolean
+        required: true
+        default: false
+        description: Automatically pick the latest tag version
+      version:
+        type: string
+        required: false
+        description: 'Put version to deploy to production'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get latest tag version
+        if: ${{ inputs.use-latest }}
+        id: semver
+        uses: anothrNick/github-tag-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DRY_RUN: true
+          DEFAULT_BUMP: none
+      - name: Set tag version
+        run: echo "DEPLOY_VERSION=${{ inputs.use-latest && steps.semver.outputs.tag || inputs.version }}" >> "$GITHUB_ENV"
+      - name: Generate job summary version to deploy
+        run: |
+          echo "This GitHub Actions is going to deploy ${{ env.IMAGE_NAME }} to version ${{ env.DEPLOY_VERSION }}" >> $GITHUB_STEP_SUMMARY
+    outputs:
+      image_tag: ${{ env.DEPLOY_VERSION }}
+      helm_values_file: "${{ env.HELM_VALUES_FOLDER }}/${{ env.HELM_VALUES_FILE_PREFIX }}-prd.yaml"
+
+  # Commit to Git for ArgoCD
+  git-commit:
+    runs-on: ubuntu-latest
+    needs:
+      - setup
+    steps:
+      - name: Check if container image tag exists
+        uses: tyriis/docker-image-tag-exists@v2.1.0
+        id: check-tag
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          repository: ${{ env.IMAGE_REPO }}
+          tag: ${{ needs.setup.outputs.image_tag }}
+      - name: Fail if container image tag not exists
+        if: steps.check-tag.outputs.tag == 'not found'
+        run: |
+          echo "::error title=Container image tag not found::Container image tag ${{ needs.setup.outputs.image_tag }} does not exist"
+          exit 1
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Image Version in Helm Value file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          commitChange: false
+          valueFile: ${{ needs.setup.outputs.helm_values_file }}
+          changes: |
+            {
+              "image.tag": "${{ needs.setup.outputs.image_tag }}",
+              "image.repository": "${{ env.IMAGE_NAME }}"
+            }
+      - name: Commit to GitOps repository
+        uses: leigholiver/commit-with-deploy-key@v1.0.4
+        with:
+          source: ${{ needs.setup.outputs.helm_values_file }}
+          destination_folder: ${{ env.HELM_VALUES_FOLDER }}
+          destination_repo: ${{ env.GITOPS_REPO }}
+          deploy_key: ${{ secrets.GITOPS_DEPLOY_KEY }}
+          commit_message: "Update Image Version to ${{ env.IMAGE_NAME}}:${{ needs.setup.outputs.image_tag }}"
