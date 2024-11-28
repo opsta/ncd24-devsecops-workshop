@@ -13,12 +13,6 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-import redis
-from sqlalchemy.orm import Session
-
-from todo_app import crud, models, schemas
-from todo_app.database import SessionLocal, engine
-
 
 """
 Environment variables
@@ -30,20 +24,11 @@ TARGET_TWO_SVC = os.environ.get("TARGET_TWO_SVC", f"localhost:{EXPOSE_PORT}")
 
 TIME_BOMB = os.environ.get("TIME_BOMB", "false").lower().strip() == "true"
 
-# Configure redis connection
-REDIS_SERVER = os.environ.get("REDIS_SERVER", "localhost")
-REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
-
 
 """
 Initial application and FastAPI
 """
 logging.basicConfig(level=logging.INFO)
-
-# Connect to Redis server
-r = redis.Redis(host=REDIS_SERVER, port=int(REDIS_PORT), db=0)
-# Create Postgres schema
-models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -54,34 +39,6 @@ app.add_middleware(
   allow_methods=["*"],  # Allow all methods
   allow_headers=["*"],  # Allow all headers
 )
-
-
-"""
-Database functions
-"""
-def get_db():
-  db = SessionLocal()
-  try:
-    yield db
-  finally:
-    db.close()
-
-def store_todo_in_redis(key, json_data, expire_time=10):
-  # Serialize the JSON data
-  json_str = json.dumps(json_data)
-  # Store the serialized JSON string in Redis
-  r.setex(key, expire_time, json_str)
-
-def read_todo_from_redis(key):
-  # Retrieve the JSON string from Redis
-  json_str = r.get(key)
-  if json_str is None:
-      return None
-  # Deserialize the JSON string
-  return json.loads(json_str)
-
-def delete_todo_from_redis(key):
-  r.delete(key)
 
 
 """
@@ -171,73 +128,12 @@ async def error_test(response: Response):
   logging.error("got error!!!!")
   raise ValueError("value error")
 
-
-"""
-FastAPI todo routes
-"""
-@app.post("/todos/", response_model=schemas.Todo)
-def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
+@app.get("/health")
+async def root(request: Request):
   """
-  Create a new Todo item
+  Health check
   """
-  todo_item = crud.create_todo(db, todo)
-  store_todo_in_redis(str(todo_item.id), todo_item.to_dict())
-  logging.info(f"Create todo: {todo_item.id}")
-  return todo_item
-
-
-@app.get("/todos/{todo_id}", response_model=schemas.Todo)
-def read_todo(todo_id: int, db: Session = Depends(get_db)):
-  """
-  Read a Todo item
-  """
-  todo_item = read_todo_from_redis(str(todo_id))
-  if todo_item:
-    logging.info(f"Read todo: {todo_id} from cache")
-    return todo_item
-  todo_item = crud.get_todo(db, todo_id)
-  if todo_item is None:
-    logging.info(f"Read todo: {todo_id} not found")
-    raise HTTPException(status_code=404, detail="Todo not found")
-  logging.info(todo_item.to_dict())
-  store_todo_in_redis(str(todo_id), todo_item.to_dict())
-  logging.info(f"Read todo: {todo_id}")
-  return todo_item
-
-
-@app.put("/todos/{todo_id}", response_model=schemas.Todo)
-def update_todo(todo_id: int, todo: schemas.TodoUpdate, db: Session = Depends(get_db)):
-  """
-  Update a Todo item
-  """
-  todo_item = crud.update_todo(db, todo_id, todo)
-  store_todo_in_redis(str(todo_id), todo_item.to_dict())
-  logging.info(f"Update todo: {todo_id}")
-  return todo_item
-
-
-@app.delete("/todos/{todo_id}", response_model=schemas.Todo)
-def delete_todo(todo_id: int, db: Session = Depends(get_db)):
-  """
-  Delete a Todo item
-  """
-  todo_item = crud.delete_todo(db, todo_id)
-  delete_todo_from_redis(str(todo_id))
-  logging.info(f"Delete todo: {todo_id}")
-  return todo_item
-
-@app.get("/todos/", response_model=List[schemas.Todo])
-def list_todos(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
-  """
-  List Todo items
-  """
-  # Trigger an delay if TIME_BOMB is set and every 50th second to 60th second every minute
-  if TIME_BOMB and 50 <= time.localtime().tm_sec < 60:
-    time.sleep(random.randint(3, 5))
-    logging.warning("Gotcha! Time bomb triggered")
-  todo_item_list = crud.get_todo_list(db, skip, limit)
-  logging.info(f"Get todo list length: {len(todo_item_list)}")
-  return todo_item_list
+  return {"status": "ok"}
 
 
 """
