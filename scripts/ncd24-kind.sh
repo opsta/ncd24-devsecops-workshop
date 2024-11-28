@@ -5,26 +5,23 @@
 
 set -e
 
-# Create Kind Kubernets Cluster
-kind create cluster
+# Update code to latest
+git -C ../ pull
+
+# Delete and create Kind Kubernets Cluster
+kind delete cluster
+kind create cluster --config kind.yaml
 
 # Update Helm repository
 helm repo update
 
-# Install MetalLB for Load Balancer
-helm repo add metallb https://metallb.github.io/metallb
-helm upgrade --install --create-namespace --namespace metallb-system \
-  metallb metallb/metallb --version 0.14.8
-kubectl apply -f k8s/manifests/metallb-ippool.yaml
-
-# Install Ingress Nginx
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-
-
-
-
+# Install ArgoCD
+helm repo add argo https://argoproj.github.io/argo-helm
+helm upgrade --install --create-namespace --namespace argocd --wait \
+  argocd argo/argo-cd --version 7.7.6 -f k8s/helm/argocd-values.yaml
+ARGOCD_PASSWORD=$(kubectl --namespace argocd get secrets argocd-initial-admin-secret --template={{.data.password}} | base64 --decode)
 
 echo ""
 echo "============================================================="
-echo "Congratulation: running preparation script has been completed"
+echo "Congratulation: running setup Kind Kubernetes cluster has been completed"
 echo "============================================================="

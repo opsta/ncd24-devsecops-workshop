@@ -1,0 +1,10 @@
+##### FROM https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml #####
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 31001
+    nodePortHttps: 32001
+
+configs:
+  params:
+    server.insecure: true

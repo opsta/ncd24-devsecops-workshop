@@ -5,6 +5,9 @@
 
 set -e
 
+# Update code to latest
+git -C ../ pull
+
 # Initial git config
 git config --global user.name "$USER"
 git config --global user.email "$USER_EMAIL"
