@@ -28,6 +28,18 @@ git add .
 git commit -m "feat: first initial"
 git push -u origin main
 
+# Copy GitOps to repository
+cp -rT gitops ~/ncd24-gitops
+cd ~/ncd24-gitops/
+git add .
+git commit -m "feat: first initial"
+git push -u origin main
+
+# Create ArgoCD Applications
+kubectl create namespace ncd24-fastapi-dev
+kubectl create namespace ncd24-fastapi-prd
+kubectl apply -f ~/ncd24-gitops/argocd/
+
 echo ""
 echo "============================================================="
 echo "Congratulation: running setup Kind Kubernetes cluster has been completed"
