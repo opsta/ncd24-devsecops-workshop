@@ -24,7 +24,7 @@ helm upgrade --install --create-namespace --namespace argocd --wait \
   argocd argo/argo-cd --version 7.7.6 -f k8s/helm/argocd-values.yaml
 ARGOCD_PASSWORD=$(kubectl --namespace argocd get secrets argocd-initial-admin-secret --template={{.data.password}} | base64 --decode)
 
-if [ ! -d "$HOME/ncd24-fastapi" ]; then
+if [ ! -d "$HOME/ncd24-fastapi/main.py" ]; then
   # Copy FastAPI to repository
   cp -rT ${SCRIPT_DIR}/python-fastapi ~/ncd24-fastapi
   cd ~/ncd24-fastapi/
@@ -35,7 +35,7 @@ else
   echo "Skipped copy FastAPI repository because it is already exists."
 fi
 
-if [ ! -d "$HOME/ncd24-gitops" ]; then
+if [ ! -d "$HOME/ncd24-gitops/argocd" ]; then
   # Copy GitOps to repository
   cp -rT ${SCRIPT_DIR}/gitops ~/ncd24-gitops
   cd ~/ncd24-gitops/
