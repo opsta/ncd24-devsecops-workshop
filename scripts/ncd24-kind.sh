@@ -22,7 +22,6 @@ helm repo update
 helm repo add argo https://argoproj.github.io/argo-helm
 helm upgrade --install --create-namespace --namespace argocd --wait \
   argocd argo/argo-cd --version 7.7.6 -f k8s/helm/argocd-values.yaml
-ARGOCD_PASSWORD=$(kubectl --namespace argocd get secrets argocd-initial-admin-secret --template={{.data.password}} | base64 --decode)
 
 if [ ! -d "$HOME/ncd24-fastapi/main.py" ]; then
   # Copy FastAPI to repository
