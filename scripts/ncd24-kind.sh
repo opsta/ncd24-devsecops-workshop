@@ -16,7 +16,7 @@ kind delete cluster
 kind create cluster --config kind.yaml
 
 # Update Helm repository
-helm repo update
+helm repo update || true
 
 # Install ArgoCD
 helm repo add argo https://argoproj.github.io/argo-helm
